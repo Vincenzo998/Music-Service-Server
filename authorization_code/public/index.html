@@ -1,0 +1,178 @@
+<!doctype html>
+<html>
+  <head>
+    <title> Log In MusicMania </title>
+    <link rel="stylesheet" type="text/css" href="./index.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <style type="text/css">
+      #login, #loggedin {
+        display: none;
+      }
+      .text-overflow {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        width: 500px;
+      }
+    </style>
+  </head>
+
+  <body class="body-costum">
+    <div class="container-fluid">
+      <div id="login">
+        <div class="row justify-content-center mt-5">
+          <div class="col-10 col-md-4 p-5 text-center rounded box">
+            <h1 class="p-4"> MusicMania </h1>
+            <a href="/login" class="btn btn-secondary">Log in with Spotify</a>
+          </div>
+        </div>
+      </div>
+      <div id="loggedin" class="body-loggedin-costum rounded p-5 mt-5">
+        <div id="user-profile">
+        </div>
+        <div id="oauth">
+        </div>
+        <button class="btn btn-secondary" id="obtain-new-token">Obtain new token using the refresh token</button>
+        <a href="http://localhost:3000">
+          <button class="btn btn-secondary"> Go to MusicMania </button>
+        </a>
+      </div>
+    </div>
+  </body>
+
+  <script id="user-profile-template" type="text/x-handlebars-template">
+    <h1 class="text font-weight-bold pb-4"> Logged in as {{display_name}} </h1>
+      <div class="row">
+        <div class="col-md-2 my-auto">
+            <img class="media-object" width="200" src="{{images.0.url}}" />
+        </div>
+        <div class="col-md-2 my-auto border rounded p-3">
+          <div class="row-12">
+            <h6 class="border-bottom p-1"> Display Name </h6>
+            <p class="ml-2"> {{display_name}} </p>
+          </div>
+          <div class="row-12">
+            <h6 class="border-bottom p-1"> ID </h6>
+            <p class="ml-2"> {{id}} </p>
+          </div>
+          <div class="row-12">
+            <h6 class="border-bottom p-1"> Country </h6>
+            <p class="ml-2"> {{country}} </p>
+          </div>
+          <div class="row-12">
+            <h6 class="border-bottom p-1"> Email </h6>
+            <p class="ml-2"> {{email}} </p>
+          </div>
+        </div>
+        <div class="col-md-6 offset-md-1 my-auto border rounded p-3">
+          <div class="row-12">
+            <h6 class="border-bottom p-1"> Spotify URI </h6>
+            <a class="ml-2" href="{{external_urls.spotify}}">{{external_urls.spotify}}</a>
+          </div>
+          <div class="row-12">
+            <h6 class="border-bottom p-1"> Link </h6>
+            <a class="ml-2" href="{{href}}">{{href}}</a>
+          </div>
+          <div class="row-12">
+            <h6 class="border-bottom p-1"> Profile Image </h6>
+            <a class="ml-2" href="{{images.0.url}}">{{images.0.url}}</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </script>
+
+  <script id="oauth-template" type="text/x-handlebars-template">
+    <h2 class="text font-weight-bold">Auth info</h2>
+    <div class="col m-3">
+      <div class="row-md-12">
+        <h5> Access token </h5>
+        <p> {{access_token}} </p>
+      </div>
+      <div class="row-md-12">
+        <h5> Refresh token </h5>
+        <p> {{refresh_token}} </p>
+      </div>
+    </div>
+  </script>
+
+  <script src="//cdnjs.cloudflare.com/ajax/libs/handlebars.js/2.0.0-alpha.1/handlebars.min.js"></script>
+  <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
+  <script>
+    (function() {
+
+      /**
+       * Obtains parameters from the hash of the URL
+       * @return Object
+       */
+      function getHashParams() {
+        var hashParams = {};
+        var e, r = /([^&;=]+)=?([^&;]*)/g,
+            q = window.location.hash.substring(1);
+        while ( e = r.exec(q)) {
+          hashParams[e[1]] = decodeURIComponent(e[2]);
+        }
+        return hashParams;
+      }
+
+      var userProfileSource = document.getElementById('user-profile-template').innerHTML,
+          userProfileTemplate = Handlebars.compile(userProfileSource),
+          userProfilePlaceholder = document.getElementById('user-profile');
+
+      var oauthSource = document.getElementById('oauth-template').innerHTML,
+          oauthTemplate = Handlebars.compile(oauthSource),
+          oauthPlaceholder = document.getElementById('oauth');
+
+      var params = getHashParams();
+
+      var access_token = params.access_token,
+          refresh_token = params.refresh_token,
+          error = params.error;
+
+      if (error) {
+        alert('There was an error during the authentication');
+      } else {
+        if (access_token) {
+          // render oauth info
+          oauthPlaceholder.innerHTML = oauthTemplate({
+            access_token: access_token,
+            refresh_token: refresh_token
+          });
+
+          $.ajax({
+              url: 'https://api.spotify.com/v1/me',
+              headers: {
+                'Authorization': 'Bearer ' + access_token
+              },
+              success: function(response) {
+                userProfilePlaceholder.innerHTML = userProfileTemplate(response);
+
+                $('#login').hide();
+                $('#loggedin').show();
+              }
+          });
+        } else {
+            // render initial screen
+            $('#login').show();
+            $('#loggedin').hide();
+        }
+
+        document.getElementById('obtain-new-token').addEventListener('click', function() {
+          $.ajax({
+            url: '/refresh_token',
+            data: {
+              'refresh_token': refresh_token
+            }
+          }).done(function(data) {
+            access_token = data.access_token;
+            oauthPlaceholder.innerHTML = oauthTemplate({
+              access_token: access_token,
+              refresh_token: refresh_token
+            });
+          });
+        }, false);
+      }
+    })();
+  </script>
+</html>
+
